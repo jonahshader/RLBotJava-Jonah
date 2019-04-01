@@ -1,11 +1,13 @@
 package rlbotexample.strategy.actions;
 
 import rlbot.flat.BallPrediction;
+import rlbot.render.Renderer;
 import rlbotexample.input.CarData;
 import rlbotexample.input.DataPacket;
 import rlbotexample.output.ControlsOutput;
 import rlbotexample.strategy.ActionPlanner;
 import rlbotexample.strategy.BallRace;
+import rlbotexample.strategy.movement.DriveToTarget;
 import rlbotexample.vector.Vector2;
 
 
@@ -19,9 +21,11 @@ public class Offense implements Action {
     private double importance = 0;
 
     private BallPrediction ballPrediction;
+    private Renderer renderer;
 
     public Offense(ActionPlanner actionPlanner) {
         ballPrediction = actionPlanner.getBallPrediction();
+        this.renderer = actionPlanner.getRenderer();
     }
 
     @Override
@@ -58,7 +62,6 @@ public class Offense implements Action {
         Vector2 ballPosition = input.ball.position.flatten();
         CarData myCar = input.car;
         Vector2 carPosition = myCar.position.flatten();
-        Vector2 carDirection = myCar.orientation.noseVector.flatten();
 
         Vector2 driveTarget = new Vector2(ballPosition.x, ballPosition.y + ((myCar.team == 0) ? -100 : 100));
         Vector2 targetDistanceVelOffset = input.ball.velocity.flatten();
@@ -67,21 +70,10 @@ public class Offense implements Action {
         Vector2 carToBall = ballPosition.minus(carPosition);
         double distanceToBall = carToBall.magnitude();
         driveTarget = driveTarget.plus(targetDistanceVelOffset.scaled(carToBall.magnitude() * 0.0004));
+        boolean jumpToBall = distanceToBall < 400 && input.ball.position.z > 200 && input.ball.position.z < 400;
 
-        Vector2 carToBallTarget = driveTarget.minus(carPosition);
-
-        double steerCorrectionRadians = carDirection.correctionAngle(carToBallTarget);
-        boolean steerTooStrong = Math.abs(steerCorrectionRadians) >  Math.PI / 2.5;
-        boolean boost = Math.abs(steerCorrectionRadians) < Math.PI / 8.0;
-        double turnSpeed = steerCorrectionRadians * 5;
-        boolean jumpToBall = distanceToBall < 500 && input.ball.position.z > 300;
-        return new ControlsOutput()
-                .withBoost(!steerTooStrong && boost)
-                .withSteer((float)-turnSpeed)
-                .withYaw((float) -turnSpeed * 0.1f)
-                .withSlide(steerTooStrong)
-                .withJump(jumpToBall && myCar.hasWheelContact)
-                .withThrottle(1f);
+        return DriveToTarget.driveToTarget(myCar, driveTarget, true, renderer)
+                .withJump(jumpToBall && myCar.hasWheelContact);
     }
 
     @Override

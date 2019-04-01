@@ -1,12 +1,14 @@
 package rlbotexample.strategy.actions;
 
 import rlbot.flat.BallPrediction;
+import rlbot.render.Renderer;
 import rlbotexample.boost.BoostManager;
 import rlbotexample.boost.BoostPad;
 import rlbotexample.input.CarData;
 import rlbotexample.input.DataPacket;
 import rlbotexample.output.ControlsOutput;
 import rlbotexample.strategy.ActionPlanner;
+import rlbotexample.strategy.movement.DriveToTarget;
 import rlbotexample.vector.Vector2;
 
 /**
@@ -19,9 +21,11 @@ public class GettingBoost implements Action {
     private double importance = 0;
 
     private BallPrediction ballPrediction;
+    private Renderer renderer;
 
     public GettingBoost(ActionPlanner actionPlanner) {
         ballPrediction = actionPlanner.getBallPrediction();
+        this.renderer = actionPlanner.getRenderer();
     }
 
     @Override
@@ -49,11 +53,8 @@ public class GettingBoost implements Action {
     @Override
     public ControlsOutput run(DataPacket input) {
         CarData myCar = input.car;
-        Vector2 carPosition = myCar.position.flatten();
         Vector2 ballPosition = input.ball.position.flatten();
-//        Vector2 closeTarget = ballPosition.plus(carPosition).scaled(0.5);
         Vector2 closeTarget = ballPosition;
-        Vector2 carDirection = myCar.orientation.noseVector.flatten();
 
         BoostPad closestBoost = BoostManager.getFullBoosts().get(0);
         double closestDistance = closeTarget.distance(closestBoost.getLocation().flatten());
@@ -66,19 +67,7 @@ public class GettingBoost implements Action {
         }
 
         Vector2 boostPosition = closestBoost.getLocation().flatten();
-        Vector2 carToBoost = boostPosition.minus(carPosition);
-
-        double steerCorrectionRadians = carDirection.correctionAngle(carToBoost);
-        boolean steerTooStrong = Math.abs(steerCorrectionRadians) > 2 * Math.PI / 4;
-        double turnSpeed = steerCorrectionRadians * 5;
-
-        boolean boost = Math.abs(steerCorrectionRadians) < Math.PI / 8.0;
-
-        return new ControlsOutput()
-                .withBoost(boost)
-                .withSteer((float) -turnSpeed)
-                .withSlide(steerTooStrong)
-                .withThrottle(1);
+        return DriveToTarget.driveToTarget(myCar, boostPosition, true, renderer);
     }
 
     @Override
